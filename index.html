@@ -1,0 +1,100 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>cleanse · data janitor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="container" id="app">
+
+    <!-- header -->
+    <div class="header">
+        <div class="logo">cleanse <span>· data janitor</span></div>
+        <div class="badge">local · no cloud</div>
+    </div>
+
+    <!-- upload zone -->
+    <div class="upload-zone" @click="$refs.fileInput.click()">
+        <div class="icon">📂</div>
+        <div class="text">drop a file or click to upload</div>
+        <div class="hint">CSV · JSON · TSV · TXT</div>
+        <input type="file" ref="fileInput" @change="handleFile" accept=".csv,.json,.tsv,.txt" style="display:none" />
+    </div>
+
+    <!-- paste area -->
+    <div class="paste-area">
+        <textarea v-model="pasteText" placeholder="paste raw text, CSV, JSON, or TSV here …"></textarea>
+        <div class="paste-actions">
+            <button class="btn primary" @click="parsePaste">parse</button>
+            <button class="btn" @click="pasteText = ''">clear</button>
+        </div>
+    </div>
+
+    <!-- stats -->
+    <div class="stats">
+        <div class="stat-box">
+            <div class="number">{{ rows }}</div>
+            <div class="label">rows</div>
+        </div>
+        <div class="stat-box">
+            <div class="number">{{ cols }}</div>
+            <div class="label">columns</div>
+        </div>
+        <div class="stat-box">
+            <div class="number">{{ missing }}%</div>
+            <div class="label">missing</div>
+        </div>
+        <div class="stat-box">
+            <div class="number">{{ score }}%</div>
+            <div class="label">health</div>
+        </div>
+    </div>
+
+    <!-- actions -->
+    <div class="actions">
+        <button class="btn primary" @click="cleanMissing">fill missing</button>
+        <button class="btn" @click="removeDupes">remove dupes</button>
+        <button class="btn" @click="normalize">normalize text</button>
+        <button class="btn" @click="detectOutliers">outliers</button>
+        <button class="btn danger" @click="resetData">reset</button>
+        <button class="btn green" @click="exportCSV" style="margin-left:auto;">CSV</button>
+        <button class="btn green" @click="exportPDF">PDF</button>
+    </div>
+
+    <!-- table -->
+    <div class="table-wrap">
+        <table v-if="displayData.length > 0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th v-for="col in columns" :key="col">{{ col }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(row, idx) in displayData" :key="idx">
+                    <td style="color:#444;">{{ idx + 1 }}</td>
+                    <td v-for="col in columns" :key="col">{{ row[col] !== undefined && row[col] !== null ? row[col] : '—' }}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div v-else class="empty-state">no data loaded — upload a file or paste raw data</div>
+    </div>
+
+    <!-- log -->
+    <div class="log" v-if="logs.length > 0">
+        <div class="entry" v-for="log in logs" :key="log.id">
+            <span class="time">▸</span> {{ log.msg }}
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
