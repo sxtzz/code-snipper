@@ -1,13 +1,24 @@
-// app.js
+/* app.js */
+// ============================================
+// CLEANSE — Data Janitor
+// Apple-Inspired · Effortless · Flawless
+// ============================================
+
 const app = new Vue({
     el: '#app',
     data: {
+        // Core data
         rawData: [],
         columns: [],
         originalData: [],
         logs: [],
         logId: 0,
-        pasteText: ''
+        pasteText: '',
+        darkMode: false,
+        highlights: {},
+        // UI settings
+        tableLimit: 200,
+        logLimit: 30
     },
     computed: {
         rows() {
@@ -17,7 +28,7 @@ const app = new Vue({
             return this.columns.length;
         },
         displayData() {
-            return this.rawData.slice(0, 100);
+            return this.rawData.slice(0, this.tableLimit);
         },
         missing() {
             if (this.rows === 0 || this.cols === 0) return 0;
@@ -25,10 +36,7 @@ const app = new Vue({
             const total = this.rows * this.cols;
             this.rawData.forEach(row => {
                 this.columns.forEach(col => {
-                    const val = row[col];
-                    if (val === undefined || val === null || val === '' || val === 'null' || val === 'undefined') {
-                        count++;
-                    }
+                    if (this.isMissing(row[col])) count++;
                 });
             });
             return Math.round((count / total) * 100);
@@ -37,26 +45,81 @@ const app = new Vue({
             if (this.rows === 0) return 0;
             let s = 100;
             s -= Math.min(this.missing * 0.5, 40);
-            const dupes = this.duplicateCount();
-            s -= Math.min(dupes * 0.8, 40);
+            s -= Math.min(this.duplicateCount * 0.8, 40);
+            const emptyCols = this.columns.filter(c =>
+                this.rawData.every(r => this.isMissing(r[c]))
+            ).length;
+            s -= Math.min(emptyCols * 3, 15);
             return Math.max(0, Math.round(s));
+        },
+        duplicateCount() {
+            const seen = new Set();
+            let d = 0;
+            this.rawData.forEach(row => {
+                const key = JSON.stringify(row);
+                if (seen.has(key)) d++;
+                else seen.add(key);
+            });
+            return d;
+        },
+        uniqueCount() {
+            const seen = new Set();
+            this.rawData.forEach(row => seen.add(JSON.stringify(row)));
+            return seen.size;
+        },
+        hasData() {
+            return this.rows > 0 && this.cols > 0;
         }
     },
     methods: {
-        duplicateCount() {
-            const seen = new Set();
-            let dupes = 0;
-            this.rawData.forEach(row => {
-                const key = JSON.stringify(row);
-                if (seen.has(key)) dupes++;
-                else seen.add(key);
-            });
-            return dupes;
+        // ---- Utilities ----
+        isMissing(val) {
+            return val === undefined || val === null || val === '' ||
+                   val === 'null' || val === 'undefined' || val === 'NaN';
         },
-        addLog(msg) {
-            this.logs.push({ id: this.logId++, msg });
-            if (this.logs.length > 20) this.logs.shift();
+
+        getColumnValues(col) {
+            return this.rawData.map(r => r[col]).filter(v => !this.isMissing(v));
         },
+
+        getColumnMode(col) {
+            const vals = this.getColumnValues(col);
+            if (vals.length === 0) return 'N/A';
+            const freq = {};
+            vals.forEach(v => freq[v] = (freq[v] || 0) + 1);
+            let max = 0, mode = 'N/A';
+            for (const [k, c] of Object.entries(freq)) {
+                if (c > max) { max = c; mode = k; }
+            }
+            return mode;
+        },
+
+        detectDelimiter(text) {
+            const firstLine = text.split('\n')[0] || '';
+            for (const d of ['\t', ';', '|', ',']) {
+                if (firstLine.includes(d)) return d;
+            }
+            return ',';
+        },
+
+        // ---- Logging ----
+        addLog(msg, type = '') {
+            this.logs.push({ id: this.logId++, msg, type });
+            if (this.logs.length > this.logLimit) this.logs.shift();
+        },
+
+        isHighlighted(row, col) {
+            return this.highlights[col] && this.highlights[col].includes(row[col]);
+        },
+
+        // ---- Theme ----
+        toggleTheme() {
+            this.darkMode = !this.darkMode;
+            document.body.classList.toggle('dark', this.darkMode);
+            localStorage.setItem('cleanse-theme', this.darkMode ? 'dark' : 'light');
+        },
+
+        // ---- File Handling ----
         handleFile(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -64,44 +127,62 @@ const app = new Vue({
             reader.onload = (ev) => {
                 this.pasteText = ev.target.result;
                 this.parsePaste();
-                this.addLog(`loaded: ${file.name}`);
+                this.addLog(`Loaded: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`, 'success');
+            };
+            reader.onerror = () => {
+                this.addLog(`Error reading file: ${file.name}`, 'error');
             };
             reader.readAsText(file);
             e.target.value = '';
         },
+
+        // ---- Parsing ----
         parsePaste() {
             const text = this.pasteText.trim();
             if (!text) {
-                this.addLog('nothing to parse');
+                this.addLog('Nothing to parse', 'warning');
                 return;
             }
             this.parseData(text);
         },
+
         parseData(text) {
             text = text.trim();
-            if (!text) return;
+            if (!text) {
+                this.addLog('Empty data', 'error');
+                return;
+            }
 
             try {
-                // try JSON
+                // Try JSON
                 if (text.startsWith('[') || text.startsWith('{')) {
                     const json = JSON.parse(text);
                     if (Array.isArray(json) && json.length > 0) {
                         this.columns = Object.keys(json[0]);
                         this.rawData = json;
                         this.originalData = JSON.parse(JSON.stringify(json));
-                        this.addLog(`parsed JSON: ${this.rows} rows, ${this.cols} columns`);
+                        this.addLog(`JSON: ${this.rows} rows, ${this.cols} columns`, 'success');
                         return;
                     }
+                    throw new Error('JSON must be an array of objects');
                 }
 
-                // try CSV/TSV
+                // Try CSV/TSV
                 const lines = text.split('\n').filter(l => l.trim());
-                if (lines.length < 2) throw new Error('not enough rows');
+                if (lines.length < 2) throw new Error('Not enough rows');
 
-                const headers = lines[0].split(/[,\t;|]/).map(h => h.trim().replace(/^["']|["']$/g, ''));
+                const delim = this.detectDelimiter(text);
+                const headers = lines[0].split(delim).map(h =>
+                    h.trim().replace(/^["']|["']$/g, '')
+                ).filter(h => h);
+
+                if (headers.length === 0) throw new Error('No headers found');
+
                 const rows = [];
                 for (let i = 1; i < lines.length; i++) {
-                    const vals = lines[i].split(/[,\t;|]/).map(v => v.trim().replace(/^["']|["']$/g, ''));
+                    const vals = lines[i].split(delim).map(v =>
+                        v.trim().replace(/^["']|["']$/g, '')
+                    );
                     const row = {};
                     headers.forEach((h, idx) => {
                         row[h] = vals[idx] !== undefined ? vals[idx] : '';
@@ -109,31 +190,50 @@ const app = new Vue({
                     rows.push(row);
                 }
 
+                if (rows.length === 0) throw new Error('No data rows found');
+
                 this.columns = headers;
                 this.rawData = rows;
                 this.originalData = JSON.parse(JSON.stringify(rows));
-                this.addLog(`parsed data: ${this.rows} rows, ${this.cols} columns`);
+                this.addLog(`Parsed: ${this.rows} rows, ${this.cols} columns`, 'success');
 
             } catch (err) {
-                this.addLog(`error: ${err.message}`);
+                this.addLog(`Error: ${err.message}`, 'error');
             }
         },
+
+        // ---- Cleaning Operations ----
         cleanMissing() {
-            if (this.rows === 0) return;
+            if (this.rows === 0) {
+                this.addLog('No data to clean', 'warning');
+                return;
+            }
             let filled = 0;
+            const changes = {};
             this.rawData.forEach(row => {
                 this.columns.forEach(col => {
-                    const val = row[col];
-                    if (val === undefined || val === null || val === '' || val === 'null' || val === 'undefined') {
-                        row[col] = 'missing';
+                    if (this.isMissing(row[col])) {
+                        row[col] = this.getColumnMode(col);
                         filled++;
+                        changes[col] = (changes[col] || 0) + 1;
                     }
                 });
             });
-            this.addLog(`filled ${filled} missing values`);
+            if (filled === 0) {
+                this.addLog('No missing values found', 'success');
+                return;
+            }
+            const summary = Object.entries(changes)
+                .map(([k, v]) => `${k}:${v}`)
+                .join(', ');
+            this.addLog(`Filled ${filled} missing values (${summary})`, 'success');
         },
+
         removeDupes() {
-            if (this.rows === 0) return;
+            if (this.rows === 0) {
+                this.addLog('No data to dedupe', 'warning');
+                return;
+            }
             const seen = new Set();
             const unique = [];
             this.rawData.forEach(row => {
@@ -145,232 +245,347 @@ const app = new Vue({
             });
             const removed = this.rawData.length - unique.length;
             this.rawData = unique;
-            this.addLog(`removed ${removed} duplicates`);
+            if (removed === 0) {
+                this.addLog('No duplicates found', 'success');
+            } else {
+                this.addLog(`Removed ${removed} duplicate rows`, 'success');
+            }
         },
+
         normalize() {
-            if (this.rows === 0) return;
+            if (this.rows === 0) {
+                this.addLog('No data to normalize', 'warning');
+                return;
+            }
             let count = 0;
             this.rawData.forEach(row => {
                 this.columns.forEach(col => {
                     if (typeof row[col] === 'string') {
-                        row[col] = row[col].toLowerCase().trim().replace(/\s+/g, ' ');
-                        count++;
+                        const n = row[col].toLowerCase().trim().replace(/\s+/g, ' ');
+                        if (n !== row[col]) {
+                            row[col] = n;
+                            count++;
+                        }
                     }
                 });
             });
-            this.addLog(`normalized ${count} text fields`);
+            if (count === 0) {
+                this.addLog('No text to normalize', 'success');
+            } else {
+                this.addLog(`Normalized ${count} text fields`, 'success');
+            }
         },
+
+        trimWhitespace() {
+            if (this.rows === 0) {
+                this.addLog('No data to trim', 'warning');
+                return;
+            }
+            let count = 0;
+            this.rawData.forEach(row => {
+                this.columns.forEach(col => {
+                    if (typeof row[col] === 'string') {
+                        const t = row[col].trim();
+                        if (t !== row[col]) {
+                            row[col] = t;
+                            count++;
+                        }
+                    }
+                });
+            });
+            if (count === 0) {
+                this.addLog('No whitespace to trim', 'success');
+            } else {
+                this.addLog(`Trimmed whitespace from ${count} fields`, 'success');
+            }
+        },
+
+        // ---- Analysis ----
         detectOutliers() {
-            if (this.rows < 3) return;
+            if (this.rows < 3) {
+                this.addLog('Need at least 3 rows for outlier detection', 'warning');
+                return;
+            }
             let found = 0;
+            this.highlights = {};
             this.columns.forEach(col => {
-                const nums = this.rawData.map(r => parseFloat(r[col])).filter(n => !isNaN(n));
+                const nums = this.rawData
+                    .map(r => parseFloat(r[col]))
+                    .filter(n => !isNaN(n) && isFinite(n));
                 if (nums.length < 3) return;
+
                 nums.sort((a, b) => a - b);
                 const q1 = nums[Math.floor(nums.length * 0.25)];
                 const q3 = nums[Math.floor(nums.length * 0.75)];
                 const iqr = q3 - q1;
                 if (iqr === 0) return;
+
                 const lower = q1 - 1.5 * iqr;
                 const upper = q3 + 1.5 * iqr;
+
                 this.rawData.forEach(row => {
                     const val = parseFloat(row[col]);
-                    if (!isNaN(val) && (val < lower || val > upper)) {
-                        if (!row[col + '_flag']) {
-                            row[col + '_flag'] = 'outlier';
-                            found++;
-                        }
+                    if (!isNaN(val) && isFinite(val) && (val < lower || val > upper)) {
+                        if (!this.highlights[col]) this.highlights[col] = [];
+                        this.highlights[col].push(row[col]);
+                        found++;
                     }
                 });
             });
-            this.addLog(`flagged ${found} outliers`);
+            if (found === 0) {
+                this.addLog('No outliers detected', 'success');
+            } else {
+                this.addLog(`Flagged ${found} outliers across ${Object.keys(this.highlights).length} columns`, 'warning');
+            }
         },
-        resetData() {
-            if (this.originalData.length === 0) return;
-            this.rawData = JSON.parse(JSON.stringify(this.originalData));
+
+        analyzeTypes() {
+            if (this.rows === 0) {
+                this.addLog('No data to analyze', 'warning');
+                return;
+            }
+            const types = {};
             this.columns.forEach(col => {
-                if (col.endsWith('_flag')) {
-                    this.rawData.forEach(row => delete row[col]);
+                const vals = this.getColumnValues(col);
+                if (vals.length === 0) {
+                    types[col] = 'empty';
+                    return;
                 }
+
+                const isNum = vals.every(v => !isNaN(parseFloat(v)) && isFinite(v));
+                if (isNum) { types[col] = 'numeric'; return; }
+
+                const isBool = vals.every(v =>
+                    v === 'true' || v === 'false' ||
+                    v === 'True' || v === 'False' ||
+                    v === 'TRUE' || v === 'FALSE' ||
+                    v === '0' || v === '1'
+                );
+                if (isBool) { types[col] = 'boolean'; return; }
+
+                const isDate = vals.every(v => !isNaN(Date.parse(v)));
+                if (isDate) { types[col] = 'date'; return; }
+
+                types[col] = 'text';
             });
-            this.addLog('reset to original data');
+
+            const summary = Object.entries(types)
+                .map(([k, v]) => `${k}:${v}`)
+                .join(', ');
+            this.addLog(`Column types: ${summary}`, 'success');
         },
+
+        // ---- Reset & Clear ----
+        resetData() {
+            if (this.originalData.length === 0) {
+                this.addLog('No original data to reset to', 'warning');
+                return;
+            }
+            this.rawData = JSON.parse(JSON.stringify(this.originalData));
+            this.highlights = {};
+            this.addLog(`Reset to original data (${this.rows} rows)`, 'success');
+        },
+
+        clearAll() {
+            if (this.rows === 0) {
+                this.addLog('No data to clear', 'warning');
+                return;
+            }
+            this.rawData = [];
+            this.columns = [];
+            this.originalData = [];
+            this.highlights = {};
+            this.pasteText = '';
+            this.logs = [];
+            this.logId = 0;
+            this.addLog('Cleared all data', 'success');
+        },
+
+        // ---- Export ----
         exportCSV() {
-            if (this.rows === 0) return;
+            if (this.rows === 0) {
+                this.addLog('No data to export', 'warning');
+                return;
+            }
+
             const headers = this.columns.join(',');
             const rows = this.rawData.map(row => {
                 return this.columns.map(col => {
-                    let val = row[col] !== undefined ? row[col] : '';
-                    if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
-                        val = '"' + val.replace(/"/g, '""') + '"';
+                    let v = row[col] !== undefined ? row[col] : '';
+                    if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) {
+                        v = '"' + v.replace(/"/g, '""') + '"';
                     }
-                    return val;
+                    return v;
                 }).join(',');
             }).join('\n');
+
             const csv = headers + '\n' + rows;
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `cleanse-${Date.now()}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            this.addLog(`exported ${this.rows} rows to CSV`);
+            this.downloadFile(csv, `cleanse-${Date.now()}.csv`, 'text/csv');
+            this.addLog(`Exported ${this.rows} rows to CSV`, 'success');
         },
+
         async exportPDF() {
             if (this.rows === 0) {
-                this.addLog('no data to export');
+                this.addLog('No data to export', 'warning');
                 return;
             }
 
             try {
                 const { PDFDocument, StandardFonts, rgb } = PDFLib;
-
                 const doc = await PDFDocument.create();
-                const page = doc.addPage([600, 800]);
+                const page = doc.addPage([612, 792]);
                 const { width, height } = page.getSize();
                 const font = await doc.embedFont(StandardFonts.Helvetica);
-                const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+                const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-                let y = height - 50;
-                const margin = 50;
-                const lineHeight = 16;
-                const fontSize = 9;
+                let y = height - 40;
+                const m = 40;
+                const lh = 12;
+                const fs = 7;
 
                 page.drawText('cleanse — data export', {
-                    x: margin,
+                    x: m,
                     y: y,
                     size: 14,
-                    font: boldFont,
-                    color: rgb(0.2, 0.2, 0.2),
+                    font: bold,
+                    color: rgb(0.1, 0.1, 0.1)
                 });
-                y -= 30;
+                y -= 24;
 
-                const meta = [
-                    `rows: ${this.rows}`,
-                    `columns: ${this.cols}`,
-                    `missing: ${this.missing}%`,
-                    `health: ${this.score}%`,
-                    `exported: ${new Date().toLocaleString()}`
-                ];
-                meta.forEach(line => {
-                    page.drawText(line, {
-                        x: margin,
-                        y: y,
-                        size: 10,
-                        font: font,
-                        color: rgb(0.3, 0.3, 0.3),
-                    });
-                    y -= 16;
+                const meta = `${this.rows} rows · ${this.cols} cols · ${this.missing}% missing · ${this.score}% health`;
+                page.drawText(meta, {
+                    x: m,
+                    y: y,
+                    size: 8,
+                    font: font,
+                    color: rgb(0.3, 0.3, 0.3)
                 });
-                y -= 10;
-
-                page.drawLine({
-                    start: { x: margin, y: y + 5 },
-                    end: { x: width - margin, y: y + 5 },
-                    thickness: 0.5,
-                    color: rgb(0.8, 0.8, 0.8),
-                });
-                y -= 15;
+                y -= 16;
 
                 const cols = this.columns;
-                const colWidths = cols.map(c => Math.max(c.length * 6, 40));
-                let totalWidth = colWidths.reduce((a, b) => a + b, 0);
-                if (totalWidth > width - margin * 2) {
-                    const scale = (width - margin * 2) / totalWidth;
-                    colWidths.forEach((w, i) => colWidths[i] = w * scale * 0.9);
+                const cw = cols.map(c => Math.max(c.length * 5 + 8, 30));
+                let tw = cw.reduce((a, b) => a + b, 0);
+                if (tw > width - m * 2) {
+                    const scale = (width - m * 2) / tw;
+                    cw.forEach((w, i) => cw[i] = Math.max(w * scale * 0.9, 20));
                 }
 
-                let x = margin;
+                let x = m;
                 cols.forEach((col, i) => {
                     page.drawText(col.slice(0, 20), {
-                        x: x + 2,
+                        x: x + 1,
                         y: y,
-                        size: fontSize,
-                        font: boldFont,
-                        color: rgb(0.1, 0.1, 0.1),
+                        size: fs + 0.5,
+                        font: bold,
+                        color: rgb(0.1, 0.1, 0.1)
                     });
-                    x += colWidths[i] + 4;
+                    x += cw[i] + 2;
                 });
-                y -= lineHeight;
+                y -= lh;
 
-                const maxRows = Math.min(50, this.rows);
+                const maxRows = Math.min(80, this.rows);
+                let rowCount = 0;
                 for (let r = 0; r < maxRows; r++) {
-                    if (y < 40) {
-                        const newPage = doc.addPage([600, 800]);
+                    if (y < 30) {
+                        const np = doc.addPage([612, 792]);
                         y = height - 40;
-                        x = margin;
+                        x = m;
                         cols.forEach((col, i) => {
-                            newPage.drawText(col.slice(0, 20), {
-                                x: x + 2,
+                            np.drawText(col.slice(0, 20), {
+                                x: x + 1,
                                 y: y,
-                                size: fontSize,
-                                font: boldFont,
-                                color: rgb(0.1, 0.1, 0.1),
+                                size: fs + 0.5,
+                                font: bold,
+                                color: rgb(0.1, 0.1, 0.1)
                             });
-                            x += colWidths[i] + 4;
+                            x += cw[i] + 2;
                         });
-                        y -= lineHeight;
+                        y -= lh;
                         const row = this.rawData[r];
-                        x = margin;
+                        x = m;
                         cols.forEach((col, i) => {
-                            const val = row[col] !== undefined && row[col] !== null ? String(row[col]).slice(0, 30) : '—';
-                            newPage.drawText(val, {
-                                x: x + 2,
+                            const v = row[col] !== undefined && row[col] !== null ?
+                                String(row[col]).slice(0, 35) : '—';
+                            np.drawText(v, {
+                                x: x + 1,
                                 y: y,
-                                size: fontSize - 1,
+                                size: fs - 0.5,
                                 font: font,
-                                color: rgb(0.2, 0.2, 0.2),
+                                color: rgb(0.2, 0.2, 0.2)
                             });
-                            x += colWidths[i] + 4;
+                            x += cw[i] + 2;
                         });
-                        y -= lineHeight;
+                        y -= lh;
+                        rowCount++;
                         continue;
                     }
 
                     const row = this.rawData[r];
-                    x = margin;
+                    x = m;
                     cols.forEach((col, i) => {
-                        const val = row[col] !== undefined && row[col] !== null ? String(row[col]).slice(0, 30) : '—';
-                        page.drawText(val, {
-                            x: x + 2,
+                        const v = row[col] !== undefined && row[col] !== null ?
+                            String(row[col]).slice(0, 35) : '—';
+                        page.drawText(v, {
+                            x: x + 1,
                             y: y,
-                            size: fontSize - 1,
+                            size: fs - 0.5,
                             font: font,
-                            color: rgb(0.2, 0.2, 0.2),
+                            color: rgb(0.2, 0.2, 0.2)
                         });
-                        x += colWidths[i] + 4;
+                        x += cw[i] + 2;
                     });
-                    y -= lineHeight;
+                    y -= lh;
+                    rowCount++;
                 }
 
-                if (this.rows > 50) {
-                    page.drawText(`... and ${this.rows - 50} more rows`, {
-                        x: margin,
+                if (this.rows > maxRows) {
+                    page.drawText(`... and ${this.rows - maxRows} more`, {
+                        x: m,
                         y: y,
-                        size: 9,
+                        size: 7,
                         font: font,
-                        color: rgb(0.5, 0.5, 0.5),
+                        color: rgb(0.5, 0.5, 0.5)
                     });
                 }
 
                 const pdfBytes = await doc.save();
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `cleanse-${Date.now()}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                this.addLog(`exported ${Math.min(this.rows, 50)} rows to PDF`);
+                this.downloadFile(pdfBytes, `cleanse-${Date.now()}.pdf`, 'application/pdf');
+                this.addLog(`Exported ${rowCount} rows to PDF`, 'success');
 
             } catch (err) {
-                this.addLog(`PDF error: ${err.message}`);
+                this.addLog(`PDF error: ${err.message}`, 'error');
             }
+        },
+
+        downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
+    },
+    mounted() {
+        // Load theme preference
+        const saved = localStorage.getItem('cleanse-theme');
+        if (saved === 'dark') {
+            this.darkMode = true;
+            document.body.classList.add('dark');
+        }
+
+        // Keyboard shortcut for parse
+        document.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                const target = e.target;
+                if (target.tagName === 'TEXTAREA') {
+                    e.preventDefault();
+                    this.parsePaste();
+                }
+            }
+        });
     }
 });
