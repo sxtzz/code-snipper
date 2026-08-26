@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cleansed</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>Data Forge · Fusion</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
@@ -16,14 +16,20 @@
     <nav class="nav">
         <div class="nav-inner">
             <div class="nav-brand">
-                <span class="nav-icon">⬡</span>
-                <span class="nav-title">Cleanse</span>
-                <span class="nav-badge">Beta</span>
+                <div class="nav-logo">◆</div>
+                <span class="nav-title">Data Forge</span>
+                <span class="nav-badge">Fusion</span>
             </div>
             <div class="nav-actions">
                 <button class="nav-btn" @click="toggleTheme" aria-label="Toggle theme">
-                    <span v-if="darkMode">☀️</span>
-                    <span v-else>🌙</span>
+                    <span v-if="darkMode">☀</span>
+                    <span v-else>☽</span>
+                </button>
+                <button class="nav-btn" @click="generateSample" title="Load sample">
+                    ⚡
+                </button>
+                <button class="nav-btn" @click="clearAll" title="Clear all">
+                    ✕
                 </button>
             </div>
         </div>
@@ -31,147 +37,131 @@
 
     <!-- Hero -->
     <header class="hero">
-        <h1 class="hero-title">Data janitor.</h1>
-        <p class="hero-sub">Clean, analyze, and transform your data. All in your browser.</p>
+        <h1 class="hero-title">
+            Transform your <span class="highlight">data</span>
+        </h1>
+        <p class="hero-sub">Clean, analyze, and refine your data with precision. All in your browser.</p>
     </header>
 
     <!-- Stats -->
-    <section class="stats">
+    <section class="stats-grid">
         <div class="stat-item">
             <span class="stat-value">{{ rows }}</span>
             <span class="stat-label">Rows</span>
         </div>
-        <div class="stat-divider"></div>
         <div class="stat-item">
             <span class="stat-value">{{ cols }}</span>
             <span class="stat-label">Columns</span>
         </div>
-        <div class="stat-divider"></div>
         <div class="stat-item">
-            <span class="stat-value">{{ missing }}%</span>
+            <span class="stat-value" :class="missingClass">{{ missing }}%</span>
             <span class="stat-label">Missing</span>
         </div>
-        <div class="stat-divider"></div>
         <div class="stat-item">
-            <span class="stat-value">{{ score }}%</span>
+            <span class="stat-value" :class="healthClass">{{ score }}%</span>
             <span class="stat-label">Health</span>
         </div>
-        <div class="stat-divider"></div>
         <div class="stat-item">
             <span class="stat-value">{{ uniqueCount }}</span>
             <span class="stat-label">Unique</span>
         </div>
-        <div class="stat-divider"></div>
         <div class="stat-item">
             <span class="stat-value">{{ duplicateCount }}</span>
             <span class="stat-label">Duplicates</span>
         </div>
     </section>
 
-    <!-- Input Section -->
-    <section class="input-section">
-        <div class="input-grid">
-            <!-- Upload -->
-            <div class="upload-card" @click="$refs.fileInput.click()">
-                <div class="upload-icon">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M12 16V4M8 8l4-4 4 4"/>
-                        <path d="M20 16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4"/>
-                    </svg>
-                </div>
-                <div class="upload-text">Upload file</div>
-                <div class="upload-hint">CSV · JSON · TSV · TXT</div>
-                <input type="file" ref="fileInput" @change="handleFile" accept=".csv,.json,.tsv,.txt" style="display:none" />
-            </div>
+    <!-- Input -->
+    <section class="input-grid">
+        <div class="upload-zone" @click="$refs.fileInput.click()">
+            <div class="upload-icon">⌘</div>
+            <div class="upload-text">Upload file</div>
+            <div class="upload-hint">CSV · JSON · TSV · TXT</div>
+            <input type="file" ref="fileInput" @change="handleFile" accept=".csv,.json,.tsv,.txt" style="display:none" />
+        </div>
 
-            <!-- Paste -->
-            <div class="paste-card">
-                <div class="paste-header">
-                    <span class="paste-label">Paste data</span>
-                    <span class="paste-shortcut">⌘↵</span>
-                </div>
-                <textarea v-model="pasteText" placeholder="Paste CSV, JSON, or TSV here…" @keydown.meta.enter="parsePaste" @keydown.ctrl.enter="parsePaste"></textarea>
-                <div class="paste-actions">
-                    <button class="btn btn-primary" @click="parsePaste">Parse</button>
-                    <button class="btn btn-ghost" @click="pasteText = ''">Clear</button>
-                </div>
+        <div class="paste-card">
+            <div class="paste-header">
+                <span class="paste-label">Paste data</span>
+                <span class="paste-shortcut">⌘↵</span>
+            </div>
+            <textarea v-model="pasteText" placeholder="Paste CSV, JSON, or TSV here…" @keydown.meta.enter="parsePaste" @keydown.ctrl.enter="parsePaste"></textarea>
+            <div class="paste-actions">
+                <button class="btn btn-primary" @click="parsePaste">Parse</button>
+                <button class="btn btn-ghost" @click="pasteText = ''">Clear</button>
             </div>
         </div>
     </section>
 
     <!-- Toolbar -->
-    <section class="toolbar-section">
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label">Clean</span>
-                <button class="btn btn-sm" @click="cleanMissing">Fill</button>
-                <button class="btn btn-sm" @click="removeDupes">Dedupe</button>
-                <button class="btn btn-sm" @click="normalize">Normalize</button>
-                <button class="btn btn-sm" @click="trimWhitespace">Trim</button>
-            </div>
-            <div class="toolbar-divider"></div>
-            <div class="toolbar-group">
-                <span class="toolbar-label">Analyze</span>
-                <button class="btn btn-sm" @click="detectOutliers">Outliers</button>
-                <button class="btn btn-sm" @click="analyzeTypes">Types</button>
-            </div>
-            <div class="toolbar-divider"></div>
-            <div class="toolbar-group">
-                <span class="toolbar-label">Export</span>
-                <button class="btn btn-sm btn-green" @click="exportCSV">CSV</button>
-                <button class="btn btn-sm btn-green" @click="exportPDF">PDF</button>
-            </div>
-            <div class="toolbar-divider"></div>
-            <div class="toolbar-group">
-                <button class="btn btn-sm btn-danger" @click="resetData">Reset</button>
-                <button class="btn btn-sm" @click="clearAll">Clear</button>
-            </div>
+    <section class="toolbar">
+        <div class="toolbar-group">
+            <span class="toolbar-label">Clean</span>
+            <button class="btn btn-sm" @click="cleanMissing">Fill</button>
+            <button class="btn btn-sm" @click="removeDupes">Dedupe</button>
+            <button class="btn btn-sm" @click="normalize">Normalize</button>
+            <button class="btn btn-sm" @click="trimWhitespace">Trim</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+            <span class="toolbar-label">Analyze</span>
+            <button class="btn btn-sm" @click="detectOutliers">Outliers</button>
+            <button class="btn btn-sm" @click="analyzeTypes">Types</button>
+            <button class="btn btn-sm btn-purple" @click="generateSummary">Summary</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+            <span class="toolbar-label">Export</span>
+            <button class="btn btn-sm btn-green" @click="exportCSV">CSV</button>
+            <button class="btn btn-sm btn-green" @click="exportJSON">JSON</button>
+            <button class="btn btn-sm btn-green" @click="exportPDF">PDF</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+            <button class="btn btn-sm" @click="resetData">Reset</button>
+            <button class="btn btn-sm btn-red" @click="clearAll">Clear</button>
         </div>
     </section>
 
     <!-- Table -->
-    <section class="table-section">
-        <div class="table-container">
-            <table v-if="displayData.length > 0" class="data-table">
-                <thead>
-                    <tr>
-                        <th class="row-number">#</th>
-                        <th v-for="col in columns" :key="col">{{ col }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="(row, idx) in displayData" :key="idx">
-                        <td class="row-number">{{ idx + 1 }}</td>
-                        <td v-for="col in columns" :key="col">
-                            <span :class="{ highlight: isHighlighted(row, col) }">
-                                {{ row[col] !== undefined && row[col] !== null ? row[col] : '—' }}
-                            </span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-            <div v-else class="empty-state">
-                <div class="empty-icon">📄</div>
-                <div class="empty-text">No data loaded</div>
-                <div class="empty-hint">Upload a file or paste data to get started</div>
-            </div>
+    <section class="table-container">
+        <table v-if="displayData.length > 0" class="data-table">
+            <thead>
+                <tr>
+                    <th class="row-number">#</th>
+                    <th v-for="col in columns" :key="col">{{ col }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(row, idx) in displayData" :key="idx">
+                    <td class="row-number">{{ idx + 1 }}</td>
+                    <td v-for="col in columns" :key="col">
+                        <span :class="{ highlight: isHighlighted(row, col) }">
+                            {{ row[col] !== undefined && row[col] !== null ? row[col] : '—' }}
+                        </span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div v-else class="empty-state">
+            <div class="empty-icon">⌘</div>
+            <div class="empty-text">No data loaded</div>
+            <div class="empty-hint">Upload a file or paste data to get started</div>
         </div>
     </section>
 
     <!-- Log -->
-    <section class="log-section" v-if="logs.length > 0">
-        <div class="log-container">
-            <div class="log-entry" v-for="log in logs" :key="log.id" :class="log.type">
-                <span class="log-marker">●</span>
-                <span class="log-message">{{ log.msg }}</span>
-            </div>
+    <section class="log-container" v-if="logs.length > 0">
+        <div class="log-entry" v-for="log in logs" :key="log.id" :class="log.type">
+            <span class="log-marker">●</span>
+            <span class="log-message">{{ log.msg }}</span>
         </div>
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-        <span class="footer-text">Weniger, aber besser — Dieter Rams</span>
-        <span class="footer-text">{{ rows }} rows · {{ cols }} columns</span>
+        <span class="footer-text">Designed with <span class="accent">◆</span> for clarity</span>
+        <span class="footer-text">{{ rows }} rows · {{ cols }} columns · {{ uniqueCount }} unique</span>
     </footer>
 </div>
 
