@@ -20,7 +20,7 @@ The Code Snippet Manager is a Python application that allows you to store, organ
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/sxtzz/code-Snipper.git
+   git clone https://github.com/sxtzz/code-snipper.git
    ```
 
 2. Navigate to the project directory:
@@ -32,7 +32,7 @@ The Code Snippet Manager is a Python application that allows you to store, organ
 3. Run the application:
 
    ```bash
-   python code-Snipper.py
+   python code-snipper.py
    ```
 
 ## Usage
