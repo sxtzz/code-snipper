@@ -64,7 +64,7 @@ If you would like to contribute code, please follow these steps:
 
 ## ScreenShot
 
-![Code Snippet Manager](https://i.imgur.com/fYAKJST.png)
+![Code Snippet Manager](<img width="1736" height="906" alt="Image" src="https://github.com/user-attachments/assets/2dea1739-ecac-4ba8-9635-742aa0b33198" />)
 
 
 ## Acknowledgements
