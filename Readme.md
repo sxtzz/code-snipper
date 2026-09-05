@@ -20,24 +20,24 @@ The Code Snippet Manager is a Python application that allows you to store, organ
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/PralinKhaira/Code-Snippet-Manager.git
+   git clone https://github.com/sxtzz/code-Snipper.git
    ```
 
 2. Navigate to the project directory:
 
    ```bash
-   cd code-snippet-manager
+   cd code-snipper
    ```
 
 3. Run the application:
 
    ```bash
-   python Code-Snippet-Manager.py
+   python code-Snipper.py
    ```
 
 ## Usage
 
-1. Launch the Code Snippet Manager by running the `Code-Snippet-Manager.py` file.
+1. Launch the Code Snippet Manager by running the `code-snipper.py` file.
 
 2. The main menu will be displayed, showing available options:
 
@@ -64,7 +64,7 @@ If you would like to contribute code, please follow these steps:
 
 ## ScreenShot
 
-(<img width="1736" height="906" alt="Image" src="https://github.com/user-attachments/assets/07345439-4cd9-4565-9e7c-346178cd9d97" />
+<img width="1736" height="906" alt="Image" src="https://github.com/user-attachments/assets/07345439-4cd9-4565-9e7c-346178cd9d97" />
 
 
 
