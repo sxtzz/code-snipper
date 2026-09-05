@@ -64,8 +64,8 @@ If you would like to contribute code, please follow these steps:
 
 ## ScreenShot
 
-![Code Snippet Manager] (<img width="1736" height="906" alt="Image" src="https://github.com/user-attachments/assets/07345439-4cd9-4565-9e7c-346178cd9d97" />
-)
+(<img width="1736" height="906" alt="Image" src="https://github.com/user-attachments/assets/07345439-4cd9-4565-9e7c-346178cd9d97" />
+
 
 
 ## Acknowledgements
